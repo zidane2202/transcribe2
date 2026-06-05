@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Speech → Transcription</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f0f13;
+      color: #e8e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .card {
+      background: #1a1a24;
+      border: 1px solid #2a2a3a;
+      border-radius: 16px;
+      padding: 2.5rem;
+      width: 100%;
+      max-width: 480px;
+    }
+    h1 { font-size: 1.2rem; font-weight: 500; color: #c8c8e0; margin-bottom: 2rem; letter-spacing: 0.02em; }
+    .btn-record {
+      width: 100%; padding: 1rem; border-radius: 12px; border: none;
+      font-size: 1rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+    }
+    .btn-record.idle { background: #5a4fcf; color: #fff; }
+    .btn-record.idle:hover { background: #6a5fdf; }
+    .btn-record.recording { background: #cf4f5a; color: #fff; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.75; } }
+    .status { margin-top: 1.25rem; font-size: 0.82rem; color: #8888aa; text-align: center; min-height: 1.2rem; }
+    .result-box {
+      margin-top: 1.5rem; background: #0f0f18; border: 1px solid #2a2a3a;
+      border-radius: 10px; padding: 1rem; font-size: 0.9rem; line-height: 1.6;
+      color: #d0d0e8; min-height: 80px; white-space: pre-wrap; display: none;
+    }
+    .result-box.visible { display: block; }
+    .actions { margin-top: 0.75rem; display: none; gap: 0.5rem; flex-wrap: wrap; }
+    .actions.visible { display: flex; }
+    .action-btn {
+      background: none; border: 1px solid #2a2a3a; color: #8888aa;
+      border-radius: 6px; padding: 0.4rem 0.9rem; font-size: 0.78rem;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .action-btn:hover { border-color: #5a4fcf; color: #c8c8e0; }
+    .action-btn.pdf:hover { border-color: #cf4f5a; color: #cf4f5a; }
+    .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; display: inline-block; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🎙 Speech → Transcription</h1>
+    <button class="btn-record idle" id="recordBtn" onclick="toggleRecording()">
+      <span class="dot"></span>
+      <span id="btnLabel">Commencer l'enregistrement</span>
+    </button>
+    <div class="status" id="status">En attente…</div>
+    <div class="result-box" id="resultBox"></div>
+    <div class="actions" id="actions">
+      <button class="action-btn" id="copyBtn" onclick="copyText()">📋 Copier</button>
+      <button class="action-btn pdf" id="pdfBtn" onclick="exportPDF()">📄 Exporter en PDF</button>
+    </div>
+  </div>
+
+  <script>
+    const WEBHOOK_URL     = 'https://n8n-pro.kaeyros.org/webhook/transcribe';
+    const WEBHOOK_PDF_URL = 'https://n8n-pro.kaeyros.org/webhook/transcribe-pdf';
+
+    let mediaRecorder = null;
+    let audioChunks   = [];
+    let isRecording   = false;
+    let lastAudioBlob = null;
+
+    async function toggleRecording() {
+      if (!isRecording) await startRecording();
+      else stopRecording();
+    }
+
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.onstop = sendToN8n;
+        mediaRecorder.start();
+        isRecording = true;
+        updateUI('recording');
+        setStatus('🔴 Enregistrement en cours…');
+      } catch (err) {
+        setStatus('❌ Accès au micro refusé : ' + err.message);
+      }
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(t => t.stop());
+      }
+      isRecording = false;
+      updateUI('idle');
+      setStatus('⏳ Envoi en cours…');
+    }
+
+    async function sendToN8n() {
+      lastAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      const formData = new FormData();
+      formData.append('data', lastAudioBlob, 'audio.webm');
+
+      try {
+        const response = await fetch(WEBHOOK_URL, { method: 'POST', body: formData });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json();
+        const text = result.transcription || result.text || JSON.stringify(result);
+        showResult(text);
+        setStatus('✅ Transcription reçue.');
+      } catch (err) {
+        setStatus('❌ Erreur : ' + err.message);
+      }
+    }
+
+    function updateUI(state) {
+      const btn = document.getElementById('recordBtn');
+      const label = document.getElementById('btnLabel');
+      if (state === 'recording') {
+        btn.className = 'btn-record recording';
+        label.textContent = "Arrêter l'enregistrement";
+      } else {
+        btn.className = 'btn-record idle';
+        label.textContent = "Commencer l'enregistrement";
+      }
+    }
+
+    function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+    function showResult(text) {
+      const box = document.getElementById('resultBox');
+      box.textContent = text;
+      box.classList.add('visible');
+      document.getElementById('actions').classList.add('visible');
+    }
+
+    function copyText() {
+      navigator.clipboard.writeText(document.getElementById('resultBox').textContent).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = '✓ Copié';
+        setTimeout(() => { btn.textContent = '📋 Copier'; }, 2000);
+      });
+    }
+
+    async function exportPDF() {
+      if (!lastAudioBlob) return;
+      const pdfBtn = document.getElementById('pdfBtn');
+      pdfBtn.disabled = true;
+      pdfBtn.textContent = '⏳ Génération…';
+      setStatus('⏳ Génération du PDF côté serveur…');
+
+      const formData = new FormData();
+      formData.append('data', lastAudioBlob, 'audio.webm');
+
+      try {
+        const response = await fetch(WEBHOOK_PDF_URL, { method: 'POST', body: formData });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `transcription-${new Date().toISOString().slice(0,10)}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        setStatus('✅ PDF téléchargé.');
+      } catch (err) {
+        setStatus('❌ Erreur PDF : ' + err.message);
+      } finally {
+        pdfBtn.disabled = false;
+        pdfBtn.textContent = '📄 Exporter en PDF';
+      }
+    }
+  </script>
+</body>
+</html>
