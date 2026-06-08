@@ -24,7 +24,7 @@
       width: 100%;
       max-width: 480px;
     }
-    h1 { font-size: 1.2rem; font-weight: 500; color: #c8c8e0; margin-bottom: 2rem; letter-spacing: 0.02em; }
+    h1 { font-size: 1.2rem; font-weight: 500; color: #c8c8e0; margin-bottom: 2rem; }
     .btn-record {
       width: 100%; padding: 1rem; border-radius: 12px; border: none;
       font-size: 1rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
@@ -33,12 +33,12 @@
     .btn-record.idle { background: #5a4fcf; color: #fff; }
     .btn-record.idle:hover { background: #6a5fdf; }
     .btn-record.recording { background: #cf4f5a; color: #fff; animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.75; } }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.75} }
     .status { margin-top: 1.25rem; font-size: 0.82rem; color: #8888aa; text-align: center; min-height: 1.2rem; }
     .result-box {
       margin-top: 1.5rem; background: #0f0f18; border: 1px solid #2a2a3a;
       border-radius: 10px; padding: 1rem; font-size: 0.9rem; line-height: 1.6;
-      color: #d0d0e8; min-height: 80px; white-space: pre-wrap; display: none;
+      color: #d0d0e8; white-space: pre-wrap; display: none;
     }
     .result-box.visible { display: block; }
     .actions { margin-top: 0.75rem; display: none; gap: 0.5rem; flex-wrap: wrap; }
@@ -77,6 +77,7 @@
     let audioChunks   = [];
     let isRecording   = false;
     let lastAudioBlob = null;
+    let lastText      = '';
 
     async function toggleRecording() {
       if (!isRecording) await startRecording();
@@ -106,7 +107,7 @@
       }
       isRecording = false;
       updateUI('idle');
-      setStatus('⏳ Envoi en cours…');
+      setStatus('⏳ Transcription en cours…');
     }
 
     async function sendToN8n() {
@@ -116,10 +117,18 @@
 
       try {
         const response = await fetch(WEBHOOK_URL, { method: 'POST', body: formData });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const result = await response.json();
-        const item = Array.isArray(result) ? result[0] : result;
-        const text = item.transcription || item.text || JSON.stringify(item);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const raw = await response.text();
+        // n8n peut renvoyer du JSON ou du texte brut
+        let text = raw;
+        try {
+          const parsed = JSON.parse(raw);
+          const item = Array.isArray(parsed) ? parsed[0] : parsed;
+          text = item.transcription || item.text || raw;
+        } catch(e) {
+          // c'est du texte brut, on le garde tel quel
+        }
+        lastText = text;
         showResult(text);
         setStatus('✅ Transcription reçue.');
       } catch (err) {
@@ -130,13 +139,8 @@
     function updateUI(state) {
       const btn = document.getElementById('recordBtn');
       const label = document.getElementById('btnLabel');
-      if (state === 'recording') {
-        btn.className = 'btn-record recording';
-        label.textContent = "Arrêter l'enregistrement";
-      } else {
-        btn.className = 'btn-record idle';
-        label.textContent = "Commencer l'enregistrement";
-      }
+      btn.className = 'btn-record ' + state;
+      label.textContent = state === 'recording' ? "Arrêter l'enregistrement" : "Commencer l'enregistrement";
     }
 
     function setStatus(msg) { document.getElementById('status').textContent = msg; }
@@ -149,7 +153,7 @@
     }
 
     function copyText() {
-      navigator.clipboard.writeText(document.getElementById('resultBox').textContent).then(() => {
+      navigator.clipboard.writeText(lastText).then(() => {
         const btn = document.getElementById('copyBtn');
         btn.textContent = '✓ Copié';
         setTimeout(() => { btn.textContent = '📋 Copier'; }, 2000);
@@ -161,23 +165,21 @@
       const pdfBtn = document.getElementById('pdfBtn');
       pdfBtn.disabled = true;
       pdfBtn.textContent = '⏳ Génération…';
-      setStatus('⏳ Génération du PDF côté serveur…');
+      setStatus('⏳ Génération du PDF…');
 
       const formData = new FormData();
       formData.append('data', lastAudioBlob, 'audio.webm');
 
       try {
         const response = await fetch(WEBHOOK_PDF_URL, { method: 'POST', body: formData });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
+        if (!response.ok) throw new Error('HTTP ' + response.status);
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `transcription-${new Date().toISOString().slice(0,10)}.pdf`;
+        a.download = 'transcription-' + new Date().toISOString().slice(0,10) + '.pdf';
         a.click();
         URL.revokeObjectURL(url);
-
         setStatus('✅ PDF téléchargé.');
       } catch (err) {
         setStatus('❌ Erreur PDF : ' + err.message);
