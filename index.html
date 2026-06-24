@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Speech → Transcription</title>
+  <title>Speech & Image → Transcription</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -25,6 +25,7 @@
       max-width: 480px;
     }
     h1 { font-size: 1.2rem; font-weight: 500; color: #c8c8e0; margin-bottom: 2rem; }
+    
     .btn-record {
       width: 100%; padding: 1rem; border-radius: 12px; border: none;
       font-size: 1rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
@@ -34,6 +35,43 @@
     .btn-record.idle:hover { background: #6a5fdf; }
     .btn-record.recording { background: #cf4f5a; color: #fff; animation: pulse 1.5s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.75} }
+    
+    /* Nouveau : zone image */
+    .image-zone {
+      margin-top: 1rem;
+      border: 1px dashed #2a2a3a;
+      border-radius: 10px;
+      padding: 0.8rem;
+      text-align: center;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .image-zone:hover { border-color: #5a4fcf; }
+    .image-zone.has-image { border-color: #4fcf8a; border-style: solid; }
+    .image-zone input { display: none; }
+    .image-zone-label { font-size: 0.82rem; color: #8888aa; }
+    .image-zone-label .icon { margin-right: 0.3rem; }
+    
+    .image-preview {
+      max-width: 100%;
+      max-height: 120px;
+      border-radius: 6px;
+      margin-top: 0.5rem;
+      display: none;
+    }
+    .image-preview.visible { display: block; }
+    
+    .clear-image {
+      margin-top: 0.5rem;
+      background: none;
+      border: none;
+      color: #cf4f5a;
+      font-size: 0.75rem;
+      cursor: pointer;
+      display: none;
+    }
+    .clear-image.visible { display: inline-block; }
+    
     .status { margin-top: 1.25rem; font-size: 0.82rem; color: #8888aa; text-align: center; min-height: 1.2rem; }
     .result-box {
       margin-top: 1.5rem; background: #0f0f18; border: 1px solid #2a2a3a;
@@ -56,11 +94,23 @@
 </head>
 <body>
   <div class="card">
-    <h1>🎙 Speech → Transcription</h1>
+    <h1>🎙 Speech & Image → Transcription</h1>
+    
     <button class="btn-record idle" id="recordBtn" onclick="toggleRecording()">
       <span class="dot"></span>
       <span id="btnLabel">Commencer l'enregistrement</span>
     </button>
+    
+    <!-- Zone image (optionnelle) -->
+    <label class="image-zone" id="imageZone" for="imageInput">
+      <input type="file" id="imageInput" accept="image/*" onchange="handleImage(event)">
+      <div class="image-zone-label" id="imageLabel">
+        <span class="icon">📷</span> Ajouter une image (optionnel)
+      </div>
+      <img class="image-preview" id="imagePreview" alt="Aperçu">
+      <button type="button" class="clear-image" id="clearBtn" onclick="clearImage(event)">✕ Retirer l'image</button>
+    </label>
+    
     <div class="status" id="status">En attente…</div>
     <div class="result-box" id="resultBox"></div>
     <div class="actions" id="actions">
@@ -77,6 +127,7 @@
     let audioChunks   = [];
     let isRecording   = false;
     let lastAudioBlob = null;
+    let lastImageFile = null;
     let lastText      = '';
 
     async function toggleRecording() {
@@ -107,30 +158,67 @@
       }
       isRecording = false;
       updateUI('idle');
-      setStatus('⏳ Transcription en cours…');
+      setStatus('⏳ Traitement en cours…');
+    }
+
+    function handleImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      lastImageFile = file;
+      
+      const reader = new FileReader();
+      reader.onload = e => {
+        const preview = document.getElementById('imagePreview');
+        preview.src = e.target.result;
+        preview.classList.add('visible');
+        document.getElementById('imageZone').classList.add('has-image');
+        document.getElementById('imageLabel').innerHTML = '<span class="icon">✓</span> ' + file.name;
+        document.getElementById('clearBtn').classList.add('visible');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearImage(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      lastImageFile = null;
+      document.getElementById('imageInput').value = '';
+      document.getElementById('imagePreview').classList.remove('visible');
+      document.getElementById('imageZone').classList.remove('has-image');
+      document.getElementById('imageLabel').innerHTML = '<span class="icon">📷</span> Ajouter une image (optionnel)';
+      document.getElementById('clearBtn').classList.remove('visible');
     }
 
     async function sendToN8n() {
       lastAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      
+      // Vérifier qu'on a au moins audio ou image
+      if (!lastAudioBlob && !lastImageFile) {
+        setStatus('❌ Rien à traiter.');
+        return;
+      }
+      
       const formData = new FormData();
-      formData.append('data', lastAudioBlob, 'audio.webm');
+      if (lastAudioBlob && lastAudioBlob.size > 0) {
+        formData.append('audio', lastAudioBlob, 'audio.webm');
+      }
+      if (lastImageFile) {
+        formData.append('image', lastImageFile, lastImageFile.name);
+      }
 
       try {
         const response = await fetch(WEBHOOK_URL, { method: 'POST', body: formData });
         if (!response.ok) throw new Error('HTTP ' + response.status);
         const raw = await response.text();
-        // n8n peut renvoyer du JSON ou du texte brut
         let text = raw;
         try {
           const parsed = JSON.parse(raw);
           const item = Array.isArray(parsed) ? parsed[0] : parsed;
           text = item.transcription || item.text || raw;
-        } catch(e) {
-          // c'est du texte brut, on le garde tel quel
-        }
+        } catch(e) {}
         lastText = text;
         showResult(text);
-        setStatus('✅ Transcription reçue.');
+        setStatus('✅ Traitement terminé.');
       } catch (err) {
         setStatus('❌ Erreur : ' + err.message);
       }
@@ -161,14 +249,19 @@
     }
 
     async function exportPDF() {
-      if (!lastAudioBlob) return;
+      if (!lastAudioBlob && !lastImageFile) return;
       const pdfBtn = document.getElementById('pdfBtn');
       pdfBtn.disabled = true;
       pdfBtn.textContent = '⏳ Génération…';
       setStatus('⏳ Génération du PDF…');
 
       const formData = new FormData();
-      formData.append('data', lastAudioBlob, 'audio.webm');
+      if (lastAudioBlob && lastAudioBlob.size > 0) {
+        formData.append('audio', lastAudioBlob, 'audio.webm');
+      }
+      if (lastImageFile) {
+        formData.append('image', lastImageFile, lastImageFile.name);
+      }
 
       try {
         const response = await fetch(WEBHOOK_PDF_URL, { method: 'POST', body: formData });
