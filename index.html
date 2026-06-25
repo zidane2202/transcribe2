@@ -1,323 +1,371 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Speech & Image → Transcription</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: system-ui, sans-serif;
-      background: #0f0f13;
-      color: #e8e8f0;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
-    }
-    .card {
-      background: #1a1a24;
-      border: 1px solid #2a2a3a;
-      border-radius: 16px;
-      padding: 2.5rem;
-      width: 100%;
-      max-width: 480px;
-    }
-    h1 { font-size: 1.2rem; font-weight: 500; color: #c8c8e0; margin-bottom: 2rem; }
-    
-    .btn {
-      width: 100%; padding: 1rem; border-radius: 12px; border: none;
-      font-size: 1rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
-      display: flex; align-items: center; justify-content: center; gap: 0.6rem;
-      margin-bottom: 1rem;
-    }
-    .btn-record.idle { background: #5a4fcf; color: #fff; }
-    .btn-record.idle:hover { background: #6a5fdf; }
-    .btn-record.recording { background: #cf4f5a; color: #fff; animation: pulse 1.5s infinite; }
-    
-    .btn-submit { 
-      background: #4fcf8a; 
-      color: #0f0f13; 
-      display: none;
-    }
-    .btn-submit.visible { display: flex; }
-    .btn-submit:hover { background: #5fdf9a; }
-    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-    
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.75} }
-    
-    .image-zone {
-      margin: 1rem 0;
-      border: 1px dashed #2a2a3a;
-      border-radius: 10px;
-      padding: 1rem;
-      text-align: center;
-      transition: all 0.2s;
-      cursor: pointer;
-    }
-    .image-zone:hover { border-color: #5a4fcf; }
-    .image-zone.has-image { border-color: #4fcf8a; border-style: solid; background: rgba(79, 207, 138, 0.05); }
-    .image-zone input { display: none; }
-    .image-zone-label { font-size: 0.85rem; color: #8888aa; }
-    .image-zone-label .icon { margin-right: 0.3rem; }
-    
-    .image-preview {
-      max-width: 100%;
-      max-height: 150px;
-      border-radius: 6px;
-      margin-top: 0.75rem;
-      display: none;
-      object-fit: contain;
-    }
-    .image-preview.visible { display: block; }
-    
-    .clear-image {
-      margin-top: 0.75rem;
-      background: none;
-      border: 1px solid #cf4f5a;
-      color: #cf4f5a;
-      border-radius: 6px;
-      padding: 0.4rem 0.8rem;
-      font-size: 0.75rem;
-      cursor: pointer;
-      display: none;
-      transition: all 0.2s;
-    }
-    .clear-image.visible { display: inline-block; }
-    .clear-image:hover { background: #cf4f5a; color: #fff; }
-    
-    .status { margin-top: 1.25rem; font-size: 0.82rem; color: #8888aa; text-align: center; min-height: 1.2rem; }
-    .result-box {
-      margin-top: 1.5rem; background: #0f0f18; border: 1px solid #2a2a3a;
-      border-radius: 10px; padding: 1rem; font-size: 0.9rem; line-height: 1.6;
-      color: #d0d0e8; white-space: pre-wrap; display: none;
-    }
-    .result-box.visible { display: block; }
-    .actions { margin-top: 0.75rem; display: none; gap: 0.5rem; flex-wrap: wrap; }
-    .actions.visible { display: flex; }
-    .action-btn {
-      background: none; border: 1px solid #2a2a3a; color: #8888aa;
-      border-radius: 6px; padding: 0.4rem 0.9rem; font-size: 0.78rem;
-      cursor: pointer; transition: all 0.2s;
-    }
-    .action-btn:hover { border-color: #5a4fcf; color: #c8c8e0; }
-    .action-btn.pdf:hover { border-color: #cf4f5a; color: #cf4f5a; }
-    .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; display: inline-block; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voix · Image → Texte</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F3F1EA;
+    --surface: #FFFFFF;
+    --field: #FBFAF5;
+    --ink: #20231E;
+    --muted: #6F6B60;
+    --line: #E4E0D2;
+    --teal: #146356;
+    --teal-soft: rgba(20,99,86,0.10);
+    --amber: #C26119;
+    --amber-soft: rgba(194,97,25,0.12);
+    --red: #D6453D;
+    --red-soft: rgba(214,69,61,0.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    line-height: 1.55;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    width: 100%;
+    max-width: 480px;
+    padding: 32px 30px 28px;
+    box-shadow: 0 1px 2px rgba(32,35,30,0.04), 0 14px 40px -24px rgba(32,35,30,0.28);
+  }
+
+  /* Wordmark */
+  .brand {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1.32rem;
+    letter-spacing: -0.015em;
+  }
+  .brand .arrow { color: var(--teal); margin: 0 5px; }
+  .subtitle { color: var(--muted); font-size: 0.86rem; margin-top: 6px; margin-bottom: 26px; }
+
+  .eyebrow {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 0.7rem; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--muted); margin-bottom: 10px;
+  }
+  .section { margin-bottom: 22px; }
+
+  /* Buttons */
+  .btn {
+    width: 100%; border: none; border-radius: 12px;
+    font-family: inherit; font-size: 0.95rem; font-weight: 500;
+    cursor: pointer; transition: background 0.18s, border-color 0.18s, color 0.18s, opacity 0.18s;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 14px 16px;
+  }
+  .btn:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .btn-record { background: var(--teal); color: #fff; }
+  .btn-record:hover:not(:disabled) { background: #105546; }
+  .btn-record.live { background: var(--red); }
+  .btn-record.live:hover { background: #c03c34; }
+
+  .btn-image {
+    background: var(--field); color: var(--ink);
+    border: 1px dashed #CFC9B6;
+  }
+  .btn-image:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
+
+  .btn-primary { background: var(--ink); color: #fff; font-weight: 600; }
+  .btn-primary:hover:not(:disabled) { background: #34372f; }
+
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex: none; }
+  .btn-record.live .dot { animation: blink 1.2s steps(1,end) infinite; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+
+  /* Waveform — the signature element */
+  .wave {
+    height: 0; opacity: 0; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    gap: 3px; transition: height 0.25s, opacity 0.25s, margin 0.25s;
+  }
+  .wave.on { height: 40px; opacity: 1; margin-top: 12px; }
+  .wave span {
+    width: 4px; height: 36px; border-radius: 4px; background: var(--teal);
+    transform: scaleY(0.1); transform-origin: center;
+    transition: transform 0.07s linear;
+  }
+
+  /* Image preview */
+  .preview { display: none; margin-top: 12px; align-items: center; gap: 12px;
+    background: var(--field); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+  .preview.on { display: flex; }
+  .preview img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; flex: none; }
+  .preview .pname { font-size: 0.82rem; color: var(--muted); flex: 1; word-break: break-all; }
+  .preview .premove {
+    border: none; background: none; color: var(--muted); cursor: pointer;
+    font-size: 1.1rem; padding: 4px 8px; border-radius: 6px; flex: none;
+  }
+  .preview .premove:hover { color: var(--red); background: var(--red-soft); }
+
+  /* Status */
+  .status { font-size: 0.84rem; color: var(--muted); min-height: 1.3rem; margin: 4px 0 20px; }
+  .status.err { color: var(--red); }
+  .status.ok { color: var(--teal); }
+
+  /* Result */
+  .result { display: none; }
+  .result.on { display: block; }
+  .result-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .result-head .eyebrow { margin: 0; }
+  .transcript {
+    font-family: 'Spline Sans Mono', monospace; font-size: 0.86rem; color: #2C2F28;
+    background: var(--field); border: 1px solid var(--line); border-left: 3px solid var(--teal);
+    border-radius: 10px; padding: 16px 18px; white-space: pre-wrap; line-height: 1.65;
+    max-height: 320px; overflow-y: auto;
+  }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .chip {
+    font-family: inherit; font-size: 0.78rem; cursor: pointer;
+    background: none; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 8px; padding: 7px 13px; transition: border-color 0.18s, color 0.18s;
+  }
+  .chip:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
+  .chip.pdf:hover:not(:disabled) { border-color: var(--amber); color: var(--amber); }
+  .chip:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  .chip:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after { animation: none !important; transition: none !important; }
+  }
+</style>
 </head>
 <body>
-  <div class="card">
-    <h1>🎙 Speech & Image → Transcription</h1>
-    
-    <button class="btn btn-record idle" id="recordBtn" onclick="toggleRecording()">
-      <span class="dot"></span>
-      <span id="btnLabel">Commencer l'enregistrement</span>
-    </button>
-    
-    <label class="image-zone" id="imageZone" for="imageInput">
-      <input type="file" id="imageInput" accept="image/*" onchange="handleImage(event)">
-      <div class="image-zone-label" id="imageLabel">
-        <span class="icon"></span> Ajouter une image (optionnel)
-      </div>
-      <img class="image-preview" id="imagePreview" alt="Aperçu">
-      <button type="button" class="clear-image" id="clearBtn" onclick="clearImage(event)">✕ Retirer l'image</button>
-    </label>
-    
-    <button class="btn btn-submit" id="submitBtn" onclick="submitContent()">
-      ⚡ Soumettre
-    </button>
-    
-    <div class="status" id="status">En attente…</div>
-    <div class="result-box" id="resultBox"></div>
-    <div class="actions" id="actions">
-      <button class="action-btn" id="copyBtn" onclick="copyText()"> Copier</button>
-      <button class="action-btn pdf" id="pdfBtn" onclick="exportPDF()">📄 Exporter en PDF</button>
+  <main class="card">
+    <div class="brand">Voix · Image<span class="arrow">&rarr;</span>Texte</div>
+    <p class="subtitle">Dictez un message ou déposez une image, recevez le texte.</p>
+
+    <div class="section">
+      <div class="eyebrow">Audio</div>
+      <button class="btn btn-record" id="recordBtn" type="button" aria-label="Enregistrer un audio">
+        <span class="dot"></span>
+        <span id="recordLabel">Démarrer l'enregistrement</span>
+      </button>
+      <div class="wave" id="wave" aria-hidden="true"></div>
     </div>
-  </div>
 
-  <script>
-    const WEBHOOK_URL     = 'https://n8n-pro.kaeyros.org/webhook/transcribe';
-    const WEBHOOK_PDF_URL = 'https://n8n-pro.kaeyros.org/webhook/transcribe-pdf';
+    <div class="section">
+      <div class="eyebrow">Image · optionnel</div>
+      <input type="file" id="imageInput" accept="image/*" hidden>
+      <button class="btn btn-image" id="imageBtn" type="button">Ajouter une image</button>
+      <div class="preview" id="preview">
+        <img id="previewImg" alt="">
+        <span class="pname" id="previewName"></span>
+        <button class="premove" id="removeImg" type="button" aria-label="Retirer l'image">&times;</button>
+      </div>
+    </div>
 
-    let mediaRecorder = null;
-    let audioChunks   = [];
-    let isRecording   = false;
-    let lastAudioBlob = null;
-    let lastImageFile = null;
-    let lastText      = '';
+    <button class="btn btn-primary" id="transcribeBtn" type="button" disabled>Transcrire</button>
+    <div class="status" id="status">En attente d'un audio ou d'une image.</div>
 
-    async function toggleRecording() {
-      if (!isRecording) await startRecording();
-      else stopRecording();
-    }
+    <div class="result" id="result">
+      <div class="result-head"><span class="eyebrow">Résultat</span></div>
+      <div class="transcript" id="transcript"></div>
+      <div class="actions">
+        <button class="chip" id="copyBtn" type="button">Copier</button>
+        <button class="chip pdf" id="pdfBtn" type="button">Exporter en PDF</button>
+        <button class="chip" id="resetBtn" type="button">Recommencer</button>
+      </div>
+    </div>
+  </main>
 
-    async function startRecording() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        audioChunks = [];
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
-        mediaRecorder.onstop = () => {
-          lastAudioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-          updateSubmitButton();
-        };
-        mediaRecorder.start();
-        isRecording = true;
-        updateUI('recording');
-        setStatus('🔴 Enregistrement en cours…');
-      } catch (err) {
-        setStatus('❌ Accès au micro refusé : ' + err.message);
-      }
-    }
+<script>
+  const WEBHOOK_URL     = 'https://n8n-pro.kaeyros.org/webhook/transcribe';
+  const WEBHOOK_PDF_URL = 'https://n8n-pro.kaeyros.org/webhook/transcribe-pdf';
 
-    function stopRecording() {
-      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-        mediaRecorder.stream.getTracks().forEach(t => t.stop());
-      }
-      isRecording = false;
-      updateUI('idle');
-      setStatus('✅ Audio enregistré. Prêt à soumettre.');
-    }
+  const $ = (id) => document.getElementById(id);
+  const recordBtn = $('recordBtn'), recordLabel = $('recordLabel');
+  const wave = $('wave');
+  const imageBtn = $('imageBtn'), imageInput = $('imageInput');
+  const preview = $('preview'), previewImg = $('previewImg'), previewName = $('previewName'), removeImg = $('removeImg');
+  const transcribeBtn = $('transcribeBtn'), statusEl = $('status');
+  const resultEl = $('result'), transcriptEl = $('transcript');
+  const copyBtn = $('copyBtn'), pdfBtn = $('pdfBtn'), resetBtn = $('resetBtn');
 
-    function handleImage(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      lastImageFile = file;
-      
-      const reader = new FileReader();
-      reader.onload = e => {
-        const preview = document.getElementById('imagePreview');
-        preview.src = e.target.result;
-        preview.classList.add('visible');
-        document.getElementById('imageZone').classList.add('has-image');
-        document.getElementById('imageLabel').innerHTML = '<span class="icon">✓</span> ' + file.name;
-        document.getElementById('clearBtn').classList.add('visible');
-        updateSubmitButton();
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const WAVE_BARS = 28;
+  let waveEls = [];
+  for (let i = 0; i < WAVE_BARS; i++) { const s = document.createElement('span'); wave.appendChild(s); waveEls.push(s); }
+
+  let mediaRecorder = null, audioChunks = [], isRecording = false;
+  let audioBlob = null, imageFile = null;
+  let audioCtx = null, analyser = null, rafId = null, micStream = null;
+
+  function setStatus(msg, kind) { statusEl.textContent = msg; statusEl.className = 'status' + (kind ? ' ' + kind : ''); }
+  function refreshActions() { transcribeBtn.disabled = !(audioBlob || imageFile) || isRecording; }
+
+  // ---------- Recording ----------
+  recordBtn.addEventListener('click', () => { isRecording ? stopRecording() : startRecording(); });
+
+  async function startRecording() {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunks = [];
+      const mime = (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm')) ? 'audio/webm' : '';
+      mediaRecorder = new MediaRecorder(micStream, mime ? { mimeType: mime } : undefined);
+      mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) audioChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        // Build the blob from the collected chunks — this is what the old version forgot to do
+        audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        stopWaveform();
+        if (micStream) micStream.getTracks().forEach((t) => t.stop());
+        setStatus('Audio prêt. Lancez la transcription ou ajoutez une image.', 'ok');
+        refreshActions();
       };
-      reader.readAsDataURL(file);
+      mediaRecorder.start();
+      isRecording = true;
+      recordBtn.classList.add('live');
+      recordLabel.textContent = "Arrêter l'enregistrement";
+      wave.classList.add('on');
+      startWaveform(micStream);
+      setStatus('Enregistrement en cours…');
+      refreshActions();
+    } catch (err) {
+      setStatus("Micro inaccessible : " + err.message + ". Autorisez le micro puis réessayez.", 'err');
     }
+  }
 
-    function clearImage(event) {
-      event.preventDefault();
-      event.stopPropagation();
-      lastImageFile = null;
-      document.getElementById('imageInput').value = '';
-      document.getElementById('imagePreview').classList.remove('visible');
-      document.getElementById('imageZone').classList.remove('has-image');
-      document.getElementById('imageLabel').innerHTML = '<span class="icon">📷</span> Ajouter une image (optionnel)';
-      document.getElementById('clearBtn').classList.remove('visible');
-      updateSubmitButton();
+  function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    isRecording = false;
+    recordBtn.classList.remove('live');
+    recordLabel.textContent = "Démarrer l'enregistrement";
+    wave.classList.remove('on');
+  }
+
+  // ---------- Waveform (live, reacts to the mic) ----------
+  function startWaveform(stream) {
+    if (reduceMotion) return;
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const draw = () => {
+        analyser.getByteFrequencyData(data);
+        for (let i = 0; i < waveEls.length; i++) {
+          const v = (data[i] || 0) / 255;
+          waveEls[i].style.transform = 'scaleY(' + Math.max(0.1, v * 1.1) + ')';
+        }
+        rafId = requestAnimationFrame(draw);
+      };
+      draw();
+    } catch (e) { /* waveform is decorative; ignore failures */ }
+  }
+
+  function stopWaveform() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null; }
+    waveEls.forEach((b) => { b.style.transform = 'scaleY(0.1)'; });
+  }
+
+  // ---------- Image ----------
+  imageBtn.addEventListener('click', () => imageInput.click());
+  imageInput.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    imageFile = f;
+    const r = new FileReader();
+    r.onload = (ev) => { previewImg.src = ev.target.result; };
+    r.readAsDataURL(f);
+    previewName.textContent = f.name;
+    preview.classList.add('on');
+    setStatus('Image ajoutée. Lancez la transcription.', 'ok');
+    refreshActions();
+  });
+  removeImg.addEventListener('click', () => {
+    imageFile = null; imageInput.value = ''; preview.classList.remove('on'); previewImg.src = '';
+    setStatus(audioBlob ? 'Audio prêt. Lancez la transcription.' : "En attente d'un audio ou d'une image.", audioBlob ? 'ok' : '');
+    refreshActions();
+  });
+
+  // ---------- Transcribe ----------
+  transcribeBtn.addEventListener('click', transcribe);
+
+  function buildFormData() {
+    const fd = new FormData();
+    if (audioBlob) fd.append('audio', audioBlob, 'audio.webm');
+    if (imageFile) fd.append('image', imageFile, 'image.jpg');
+    return fd;
+  }
+
+  async function transcribe() {
+    if (!audioBlob && !imageFile) { setStatus("Enregistrez un audio ou ajoutez une image d'abord.", 'err'); return; }
+    setStatus('Analyse en cours…');
+    transcribeBtn.disabled = true;
+    try {
+      const res = await fetch(WEBHOOK_URL, { method: 'POST', body: buildFormData() });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const text = (data && data.text) ? data.text
+        : (Array.isArray(data) && data[0] && data[0].text) ? data[0].text
+        : JSON.stringify(data);
+      transcriptEl.textContent = text;
+      resultEl.classList.add('on');
+      setStatus('Transcription terminée.', 'ok');
+    } catch (err) {
+      setStatus('La transcription a échoué : ' + err.message + '. Réessayez.', 'err');
+    } finally {
+      transcribeBtn.disabled = false;
     }
+  }
 
-    function updateSubmitButton() {
-      const submitBtn = document.getElementById('submitBtn');
-      if (lastAudioBlob || lastImageFile) {
-        submitBtn.classList.add('visible');
-      } else {
-        submitBtn.classList.remove('visible');
-      }
+  // ---------- Result actions ----------
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(transcriptEl.textContent).then(() => {
+      copyBtn.textContent = 'Copié';
+      setTimeout(() => { copyBtn.textContent = 'Copier'; }, 1800);
+    });
+  });
+
+  pdfBtn.addEventListener('click', async () => {
+    if (!audioBlob && !imageFile) return;
+    pdfBtn.disabled = true; pdfBtn.textContent = 'Génération…';
+    setStatus('Génération du PDF…');
+    try {
+      const res = await fetch(WEBHOOK_PDF_URL, { method: 'POST', body: buildFormData() });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'transcription-' + new Date().toISOString().slice(0, 10) + '.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus('PDF téléchargé.', 'ok');
+    } catch (err) {
+      setStatus('Export PDF impossible : ' + err.message + '. Réessayez.', 'err');
+    } finally {
+      pdfBtn.disabled = false; pdfBtn.textContent = 'Exporter en PDF';
     }
+  });
 
-    async function submitContent() {
-      if (!lastAudioBlob && !lastImageFile) {
-        setStatus(' Aucun contenu à traiter.');
-        return;
-      }
-      
-      const submitBtn = document.getElementById('submitBtn');
-      submitBtn.disabled = true;
-      submitBtn.textContent = '⏳ Traitement…';
-      setStatus('⏳ Traitement en cours…');
-      
-      const formData = new FormData();
-      if (lastAudioBlob && lastAudioBlob.size > 0) {
-        formData.append('audio', lastAudioBlob, 'audio.webm');
-      }
-      if (lastImageFile) {
-        formData.append('image', lastImageFile, lastImageFile.name);
-      }
-
-      try {
-        const response = await fetch(WEBHOOK_URL, { method: 'POST', body: formData });
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        const raw = await response.text();
-        let text = raw;
-        try {
-          const parsed = JSON.parse(raw);
-          const item = Array.isArray(parsed) ? parsed[0] : parsed;
-          text = item.transcription || item.text || item.result || raw;
-        } catch(e) {}
-        lastText = text;
-        showResult(text);
-        setStatus('✅ Traitement terminé.');
-      } catch (err) {
-        setStatus('❌ Erreur : ' + err.message);
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = '⚡ Soumettre';
-      }
-    }
-
-    function updateUI(state) {
-      const btn = document.getElementById('recordBtn');
-      const label = document.getElementById('btnLabel');
-      btn.className = 'btn btn-record ' + state;
-      label.textContent = state === 'recording' ? "Arrêter l'enregistrement" : "Commencer l'enregistrement";
-    }
-
-    function setStatus(msg) { document.getElementById('status').textContent = msg; }
-
-    function showResult(text) {
-      const box = document.getElementById('resultBox');
-      box.textContent = text;
-      box.classList.add('visible');
-      document.getElementById('actions').classList.add('visible');
-    }
-
-    function copyText() {
-      navigator.clipboard.writeText(lastText).then(() => {
-        const btn = document.getElementById('copyBtn');
-        btn.textContent = '✓ Copié';
-        setTimeout(() => { btn.textContent = '📋 Copier'; }, 2000);
-      });
-    }
-
-    async function exportPDF() {
-      if (!lastAudioBlob && !lastImageFile) return;
-      const pdfBtn = document.getElementById('pdfBtn');
-      pdfBtn.disabled = true;
-      pdfBtn.textContent = '⏳ Génération…';
-      setStatus('⏳ Génération du PDF…');
-
-      const formData = new FormData();
-      if (lastAudioBlob && lastAudioBlob.size > 0) {
-        formData.append('audio', lastAudioBlob, 'audio.webm');
-      }
-      if (lastImageFile) {
-        formData.append('image', lastImageFile, lastImageFile.name);
-      }
-
-      try {
-        const response = await fetch(WEBHOOK_PDF_URL, { method: 'POST', body: formData });
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'transcription-' + new Date().toISOString().slice(0,10) + '.pdf';
-        a.click();
-        URL.revokeObjectURL(url);
-        setStatus('✅ PDF téléchargé.');
-      } catch (err) {
-        setStatus('❌ Erreur PDF : ' + err.message);
-      } finally {
-        pdfBtn.disabled = false;
-        pdfBtn.textContent = '📄 Exporter en PDF';
-      }
-    }
-  </script>
+  resetBtn.addEventListener('click', () => {
+    audioBlob = null; imageFile = null; imageInput.value = '';
+    preview.classList.remove('on'); previewImg.src = '';
+    resultEl.classList.remove('on'); transcriptEl.textContent = '';
+    setStatus("En attente d'un audio ou d'une image.");
+    refreshActions();
+  });
+</script>
 </body>
 </html>
